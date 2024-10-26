@@ -1,13 +1,28 @@
-#include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
+#include "xor_primes.h"
 
-typedef struct list_node{
-    int data;
-    struct list_node *next;
-}list_node;
+void print_mob(int n){
+    int *mob_2n = mobius_2_sieve(n);
+    for (int i = 0; i <= n; i++){
+        fprintf(stderr,"%c",(i==0)?'[':',');
+        fprintf(stderr,"%d",mob_2n[i]);
+    }
+    fprintf(stderr,"]\n");
+    free(mob_2n);
+}
 
-void insert(list_node *head, list_node *node){
+void print_elst(int *elist,int len){
+    int i = 0;
+    while (i < len){
+        fprintf(stderr,"%c",(i==0)?'[':',');
+        fprintf(stderr,"%d",elist[i]);
+        i++;
+    }
+    fprintf(stderr,"]\n");
+}
+
+void insert(list_node *head, int data){
+    list_node *node = malloc(sizeof(list_node));
+    node->data = data;
     node->next = head->next;
     head->next = node;
 }
@@ -15,8 +30,9 @@ void insert(list_node *head, list_node *node){
 void free_list_nodes(list_node *head){
     if (head == NULL) return;
     else{
-        free_list_nodes(head->next);
+        list_node *newhead = head->next;
         free(head);
+        free(newhead);
     } 
 }
 
@@ -29,10 +45,11 @@ int get(list_node *head, int index){
 }
 
 //length n array where all but the first x entries are 1 (first x are 0)
-char *emplst(int n, int x){
-    char *ret = malloc(n);
-    for (int i = 0; i < x; i++) *(ret+i) = 0;
-    for (int i = x; i < n; i++) *(ret+i) = 1;
+int *emplst(int n, int x){
+    int *ret = malloc(n*sizeof(int));
+    for (int i = 0; i < x; i++) ret[i] = 0;
+    for (int i = x; i < n; i++) ret[i] = 1;
+    return ret;
 }
 
 unsigned long xor_product(unsigned int xi, unsigned int yi){//works for any ints
@@ -49,12 +66,13 @@ unsigned long xor_product(unsigned int xi, unsigned int yi){//works for any ints
 list_node *divisors_of(int x){
     list_node *head = malloc(sizeof(list_node));
     head->data = x;
-    for (int i = 1; i < (int)sqrt((double)x); i++){
-        list_node *div = (x % i ==0) ? malloc(sizeof(list_node)) : NULL;
-        if (div != NULL){
-            div->data = i;
-            insert(head,div);
-        }
+    head->next = NULL;
+    int sq_rt = (int)sqrt((double)x);
+    for (int i = 1; i <= sq_rt; i++){
+        if (x % i == 0){
+            insert(head,i);
+            if (i ^ 1 && i ^ sq_rt)insert(head,x/i);
+        } 
     }
     return head;
 }
@@ -82,15 +100,15 @@ list_node *divisors_of(int x){
 //                     mob[j] = 0
 //     return mob
 
-char *mobius_2_sieve(int n){
-    char *prime = emplst(n, 2);
-    char *mob = emplst(n,1);
+int *mobius_2_sieve(int n){
+    int *prime = emplst(n+1, 2);
+    int *mob = emplst(n+1,1);
     for (int i = 2; i < n+1; i++){
         if (*(prime+i)){
-            *(mob+i) *= -1;
+            *(mob+i) = *(mob+i) * -1;
             for (int j = 2*i; j < n+1; j += i){
                 *(prime+j) = 0;
-                *(mob+j) *= -1;
+                *(mob+j) = *(mob+j) * -1;
             }
             int sq = i*i;
             if (sq <= n){
@@ -114,20 +132,29 @@ def numOfIrred(n):
         tot += mob[d]*pow(2, n//d)
     return tot//n
 */
-int two_to_the(int n){
-    return n > 0 ? 2 * two_to_the(n-1) : 1;
+long two_to_the(unsigned int n){
+    return (long)1 << n;
 }
 
-int count_irreducible(int n){
-    int tot = 0;
-    char *mob = mobius_2_sieve(n);
-    list_node *divs = divisors_of(n);
+long count_irreducible(unsigned int degree){
+    long tot = 0;
+    int *mob = mobius_2_sieve(degree);
+    print_mob(degree);
+    list_node *divs = divisors_of(degree);
     list_node *div_iter = divs;
     while (div_iter != NULL){
-        tot += (*(mob+div_iter->data)*(two_to_the(n/div_iter->data)));
+        fprintf(stderr,"TOT: %ld\n",tot);
+        fprintf(stderr,"DIVISOR: %ld\n",div_iter->data);
+        fprintf(stderr,"MOB[]: %ld\n",mob[div_iter->data]);
+        fprintf(stderr,"POW2: %ld\n",two_to_the(degree/(div_iter->data)));
+        long add = mob[div_iter->data] * two_to_the(degree/(div_iter->data));
+        fprintf(stderr,"ADD: %ld\n",add);
+        tot = tot+add;
+        div_iter = div_iter->next;
     }
+    free(mob);
     free_list_nodes(divs);
-    return tot/n;
+    return tot/degree;
 }
 
 /*
@@ -164,16 +191,17 @@ def sieve(lim):
 */
 
 long sieve(int n){
-    int tot = 0;
+    if (n == 1) return 2;
+    long tot = 0;
     int d = 1;
     while (1){
-        int t = count_irreducible(d);
+        long t = count_irreducible(d);
         if ((tot + t) > n) break;
         tot += t;
         d++;
     }
-    int N = two_to_the(d+1);
-    char *results = emplst(N,2);
+    unsigned int N = (unsigned int)two_to_the(d+1);
+    int *results = emplst(N,2);
     for (int i = 4; i < N; i+=2) *(results+i) = 0;
     int count = 1;
     for (int i = 3; i < N; i+=2){
@@ -203,13 +231,14 @@ while True:
 
 
 int main(int argc, char **argv){
+    print_mob(2);
+    print_mob(3);
     int nth = 0;
     while (nth != -1){
-        printf("To find the nth xor prime, enter integer n: \n");
+        printf("Enter integer n: \n");
         if (scanf("%d",&nth) == 1){
-            if (nth > 0) printf("%d\n",sieve(nth));
-            else break;
-        }
+                if (nth > 0) printf("XOR Prime #%d is: %ld\n",nth,sieve(nth));
+        } else return -1;
     }
     return 0;
 }
